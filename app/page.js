@@ -4,41 +4,60 @@ import { useState, useEffect } from "react";
 import moment from "moment";
 import {
     Play, RotateCcw, CheckCircle2, Coffee, XCircle,
-    ChevronDown, ChevronUp, Terminal, Calendar as CalendarIcon
+    ChevronDown, ChevronUp, Terminal, Calendar as CalendarIcon,
+    Bell, Clock
 } from "lucide-react";
 
 export default function Home() {
   const [loading, setLoading] = useState(false);
+  const [pushing, setPushing] = useState(false); // Bark推送状态
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
-  const [autoRunDone, setAutoRunDone] = useState(false); // 防止重复触发
+  const [autoRunDone, setAutoRunDone] = useState(false);
 
-  const startSign = async () => {
-    setLoading(true);
-    setError("");
-    // 保持旧数据展示直到新数据回来，体验更好
+  // 通用请求函数，action: 'check' | 'sign' | 'bark'
+  const requestApi = async (action) => {
+    // 如果是推送Bark，单独处理loading状态
+    if (action === 'bark') {
+      setPushing(true);
+    } else {
+      setLoading(true);
+      setError("");
+    }
+
     try {
-      const res = await fetch("/api/sign", { method: "POST" });
+      // 通过 URL 参数传递 action
+      const res = await fetch(`/api/sign?action=${action}`, { method: "POST" });
       const json = await res.json();
+
       if (res.ok) {
-        setData(json);
+        if (action === 'bark') {
+            alert("推送成功！"); // 简单提示
+        } else {
+            setData(json);
+        }
       } else {
-        setError(json.error || "请求失败");
+        const key = action === 'bark' ? "推送失败" : "请求失败";
+        setError(`${key}: ${json.error || "未知错误"}`);
       }
     } catch (e) {
       setError(e.message);
     } finally {
-      setLoading(false);
+      if (action === 'bark') setPushing(false);
+      else setLoading(false);
     }
   };
 
-  // 页面加载时自动触发一次
+  // 页面加载时：仅检测状态 (action=check)
   useEffect(() => {
     if (!autoRunDone) {
-        startSign();
+        requestApi('check');
         setAutoRunDone(true);
     }
   }, []);
+
+  // 计算是否还有未签到的账号
+  const hasUnsigned = data?.results?.some(item => item.status === 'waiting' || item.status === 'error');
 
   return (
     <main className="max-w-md mx-auto min-h-screen bg-gray-50 flex flex-col p-4 font-sans">
@@ -50,8 +69,19 @@ export default function Home() {
             {moment().format("YYYY年MM月DD日 dddd")}
           </p>
         </div>
-        <div className="bg-white p-2 rounded-full shadow-sm border border-gray-100">
-          <Terminal size={20} className="text-slate-600" />
+        <div className="flex gap-2">
+            {/* Bark 推送按钮 */}
+            <button
+                onClick={() => requestApi('bark')}
+                disabled={pushing || loading}
+                className="bg-white p-2 rounded-full shadow-sm border border-gray-100 hover:bg-gray-50 active:scale-95 transition-all text-slate-600 disabled:opacity-50"
+                title="推送当前状态到 Bark"
+            >
+                {pushing ? <RotateCcw size={20} className="animate-spin" /> : <Bell size={20} />}
+            </button>
+            <div className="bg-white p-2 rounded-full shadow-sm border border-gray-100">
+                <Terminal size={20} className="text-slate-600" />
+            </div>
         </div>
       </div>
 
@@ -62,23 +92,33 @@ export default function Home() {
             {loading ? (
               <RotateCcw className="animate-spin text-blue-500" size={32} />
             ) : (
-              <Play className="text-slate-700 ml-1" size={32} />
+               // 根据是否全部完成显示不同图标
+               !data ? <Play className="text-slate-700 ml-1" size={32} /> :
+               (hasUnsigned ? <Clock className="text-orange-500" size={32} /> : <CheckCircle2 className="text-green-500" size={32} />)
             )}
           </div>
         </div>
         <h2 className="text-lg font-bold text-slate-800 mb-1">
-            {loading ? "正在检测状态..." : (data ? "检测完成" : "准备就绪")}
+            {loading ? "正在通讯中..." : (data ? (hasUnsigned ? "待处理" : "今日已完成") : "准备就绪")}
         </h2>
         <p className="text-sm text-gray-400 mb-6 px-4">
-            {loading ? "正在同步云端数据" : "页面加载已自动执行检测"}
+            {loading ? "正在同步云端数据" : (data ? "状态同步完成" : "点击下方按钮开始检测")}
         </p>
 
+        {/* 主按钮逻辑：如果有未签到的，显示'立即签到'，否则显示'刷新状态' */}
         <button
-          onClick={startSign}
+          onClick={() => requestApi(hasUnsigned ? 'sign' : 'check')}
           disabled={loading}
-          className="w-full py-3 bg-slate-900 hover:bg-slate-800 active:scale-95 text-white rounded-xl font-medium transition-all disabled:opacity-70 shadow-lg shadow-slate-200 text-sm"
+          className={`w-full py-3 text-white rounded-xl font-medium transition-all disabled:opacity-70 shadow-lg text-sm
+            ${hasUnsigned 
+                ? 'bg-blue-600 hover:bg-blue-700 active:scale-95 shadow-blue-200' 
+                : 'bg-slate-900 hover:bg-slate-800 active:scale-95 shadow-slate-200'
+            }`}
         >
-          {loading ? "处理中..." : "手动刷新状态"}
+          {loading
+            ? "处理中..."
+            : (hasUnsigned ? "立即签到" : "刷新状态")
+          }
         </button>
       </div>
 
@@ -98,23 +138,20 @@ export default function Home() {
           ))}
         </div>
       )}
-
-      {!data && !loading && !error && (
-        <div className="text-center text-gray-300 text-sm py-10">等待数据返回...</div>
-      )}
     </main>
   );
 }
 
-// 结果卡片组件（包含日历）
+// 结果卡片组件
 function ResultCard({ item }) {
-  const [isOpen, setIsOpen] = useState(false); // 默认不展开日志
-  const [showCalendar, setShowCalendar] = useState(true); // 默认展示日历
+  const [isOpen, setIsOpen] = useState(false);
+  const [showCalendar, setShowCalendar] = useState(true);
 
   const getStatusConfig = (status) => {
     switch(status) {
         case 'success': return { color: 'text-green-500', bg: 'bg-green-50', icon: CheckCircle2, text: '签到成功' };
         case 'skipped': return { color: 'text-blue-500', bg: 'bg-blue-50', icon: Coffee, text: '今日已签' };
+        case 'waiting': return { color: 'text-orange-500', bg: 'bg-orange-50', icon: Clock, text: '等待签到' }; // 新增 waiting 状态
         default: return { color: 'text-red-500', bg: 'bg-red-50', icon: XCircle, text: '执行异常' };
     }
   };
@@ -124,7 +161,6 @@ function ResultCard({ item }) {
 
   return (
     <div className="bg-white rounded-xl overflow-hidden shadow-sm border border-gray-100">
-      {/* 顶部标题栏 */}
       <div className="p-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <div className={`p-2 rounded-full ${config.bg} ${config.color}`}>
@@ -156,14 +192,12 @@ function ResultCard({ item }) {
         </div>
       </div>
 
-      {/* 日历组件区域 */}
       {showCalendar && item.status !== 'error' && (
         <div className="px-4 pb-4 animate-in fade-in">
              <MonthCalendar consecutiveDays={item.consecutiveDays || 0} />
         </div>
       )}
 
-      {/* 日志详情 */}
       {isOpen && (
         <div className="bg-gray-50/50 px-4 py-3 border-t border-gray-100 animate-in slide-in-from-top-1">
           <div className="space-y-2">
@@ -180,23 +214,14 @@ function ResultCard({ item }) {
   );
 }
 
-// 日历组件
+// 日历组件保持不变
 function MonthCalendar({ consecutiveDays }) {
-    // 获取当月信息
     const today = moment();
     const startOfMonth = moment().startOf('month');
-    const endOfMonth = moment().endOf('month');
     const daysInMonth = today.daysInMonth();
-
-    // 计算签到覆盖的日期范围：[今天 - 连签天数 + 1, 今天]
-    // 注意：这里简化逻辑，假设连签天数都在本月或跨月，只要日期匹配就打钩
     const checkStartDate = moment().subtract(consecutiveDays - 1, 'days');
-
-    // 生成日历格子
     const days = [];
-    // 填充月初空白 (0-6, 0 is Sunday)
-    // moment.day() returns 0 for Sunday, we want 0 for Monday usually in CN, but let's stick to Sun-Sat grid
-    const startDayOfWeek = startOfMonth.day(); // 0(Sun) to 6(Sat)
+    const startDayOfWeek = startOfMonth.day();
 
     for (let i = 0; i < startDayOfWeek; i++) {
         days.push({ day: '', active: false });
@@ -204,8 +229,6 @@ function MonthCalendar({ consecutiveDays }) {
 
     for (let d = 1; d <= daysInMonth; d++) {
         const currentDay = moment().date(d);
-        // 判断这一天是否在 [CheckStartDate, Today] 范围内
-        // 且这一天不能是将来的日期
         const isChecked = currentDay.isSameOrAfter(checkStartDate, 'day') && currentDay.isSameOrBefore(today, 'day');
         const isToday = currentDay.isSame(today, 'day');
 
@@ -229,7 +252,7 @@ function MonthCalendar({ consecutiveDays }) {
             </div>
             <div className="grid grid-cols-7 gap-1">
                 {days.map((item, idx) => {
-                    if (!item.day) return <div key={idx} />; // 空白占位
+                    if (!item.day) return <div key={idx} />;
                     return (
                         <div
                             key={idx}
@@ -246,12 +269,6 @@ function MonthCalendar({ consecutiveDays }) {
                     );
                 })}
             </div>
-            {consecutiveDays > 0 && (
-                <div className="text-[10px] text-right text-green-600 mt-2 flex justify-end items-center gap-1">
-                    <CheckCircle2 size={10} />
-                    已连续打卡 {consecutiveDays} 天
-                </div>
-            )}
         </div>
     );
 }
