@@ -101,6 +101,9 @@ export default function Home() {
         <h2 className="text-lg font-bold text-slate-800 mb-1">
             {loading ? "正在通讯中..." : (data ? (hasUnsigned ? "待处理" : "今日已完成") : "准备就绪")}
         </h2>
+        {/* Countdown Timer */}
+        <Countdown />
+
         <p className="text-sm text-gray-400 mb-6 px-4">
             {loading ? "正在同步云端数据" : (data ? "状态同步完成" : "点击下方按钮开始检测")}
         </p>
@@ -140,6 +143,47 @@ export default function Home() {
       )}
     </main>
   );
+}
+
+// Countdown Component
+function Countdown() {
+    const [timeLeft, setTimeLeft] = useState("");
+
+    useEffect(() => {
+        const calculateTimeLeft = () => {
+            const now = moment();
+            // Target: 08:30 Beijing Time (UTC+8) = 00:30 UTC
+            // Assuming the system time is in user's local time.
+            // We need to find the next occurrence of 08:30 in Beijing time.
+
+            // Note: Since we are in the browser, manipulating timezones can be tricky without moment-timezone.
+            // But usually users in China will have local time = Beijing time.
+            // If we assume the user is in China/Beijing timezone:
+            let target = moment().hours(7).minutes(0).seconds(0);
+
+            if (now.isAfter(target)) {
+                target.add(1, 'day');
+            }
+
+            const diff = target.diff(now);
+            const duration = moment.duration(diff);
+            const hours = Math.floor(duration.asHours());
+            const minutes = duration.minutes();
+            const seconds = duration.seconds();
+
+            setTimeLeft(` ${hours}小时 ${minutes}分`);
+        };
+
+        calculateTimeLeft();
+        const timer = setInterval(calculateTimeLeft, 1000);
+        return () => clearInterval(timer);
+    }, []);
+
+    return (
+        <div className="text-xs text-blue-500 bg-blue-50 inline-block px-3 py-1 rounded-full mb-2">
+            下次自动签到: {timeLeft}
+        </div>
+    );
 }
 
 // 结果卡片组件
@@ -194,7 +238,7 @@ function ResultCard({ item }) {
 
       {showCalendar && item.status !== 'error' && (
         <div className="px-4 pb-4 animate-in fade-in">
-             <MonthCalendar consecutiveDays={item.consecutiveDays || 0} />
+             <MonthCalendar consecutiveDays={item.consecutiveDays || 0} status={item.status} />
         </div>
       )}
 
@@ -214,12 +258,20 @@ function ResultCard({ item }) {
   );
 }
 
-// 日历组件保持不变
-function MonthCalendar({ consecutiveDays }) {
+// 日历组件
+function MonthCalendar({ consecutiveDays, status }) {
     const today = moment();
     const startOfMonth = moment().startOf('month');
     const daysInMonth = today.daysInMonth();
-    const checkStartDate = moment().subtract(consecutiveDays - 1, 'days');
+
+    // Bug fix: If not signed in today (waiting/error), the streak ends yesterday.
+    const isSignedToday = status === 'success' || status === 'skipped';
+    const checkEndDate = isSignedToday ? today : moment().subtract(1, 'days');
+    // Calculate start date based on the end date and duration
+    // If consecutiveDays is 0, we shouldn't have any range really, but the math:
+    // Start = End - (0 - 1) = End + 1. Start > End. Range invalid. Correct.
+    const checkStartDate = checkEndDate.clone().subtract(consecutiveDays - 1, 'days');
+
     const days = [];
     const startDayOfWeek = startOfMonth.day();
 
@@ -229,7 +281,10 @@ function MonthCalendar({ consecutiveDays }) {
 
     for (let d = 1; d <= daysInMonth; d++) {
         const currentDay = moment().date(d);
-        const isChecked = currentDay.isSameOrAfter(checkStartDate, 'day') && currentDay.isSameOrBefore(today, 'day');
+        // Ensure consecutiveDays > 0 for any checking
+        const isChecked = consecutiveDays > 0 &&
+                          currentDay.isSameOrAfter(checkStartDate, 'day') &&
+                          currentDay.isSameOrBefore(checkEndDate, 'day');
         const isToday = currentDay.isSame(today, 'day');
 
         days.push({
