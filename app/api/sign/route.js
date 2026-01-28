@@ -44,18 +44,28 @@ class NineBot {
         console.log(`[${this.name}] ${name}: ${value}`);
     }
 
-    async makeRequest(method, url, data = null) {
-        try {
-            const response = await axios({
-                method,
-                url,
-                data,
-                headers: this.headers, // 必须使用包含完整字段的 headers
-                timeout: CONFIG.timeout
-            });
-            return response.data;
-        } catch (error) {
-            throw error;
+    async makeRequest(method, url, data = null, retries = 3) {
+        for (let i = 0; i < retries; i++) {
+            try {
+                const response = await axios({
+                    method,
+                    url,
+                    data,
+                    headers: this.headers, // 必须使用包含完整字段的 headers
+                    timeout: CONFIG.timeout
+                });
+                return response.data;
+            } catch (error) {
+                const isLastAttempt = i === retries - 1;
+                if (isLastAttempt) {
+                    throw error;
+                }
+                const waitTime = 1000; // Fixed 1 second delay between retries
+                // Only log if it's a retry event to avoid cluttering normal logs unless verbose
+                console.log(`[${this.name}] 请求失败 (尝试 ${i + 1}/${retries})，等待重试... 错误: ${error.message}`);
+                
+                await new Promise(resolve => setTimeout(resolve, waitTime));
+            }
         }
     }
 
