@@ -61,7 +61,7 @@ export default function Home() {
 
   // 诗词状态
   const [poem, setPoem] = useState(null);
-  
+
   // 获取每日诗词
   useEffect(() => {
     fetch("https://v1.jinrishici.com/all.json")
@@ -154,7 +154,7 @@ export default function Home() {
 
       {/* 结果列表 */}
       {data && data.results && (
-        <div className="space-y-4 pb-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="space-y-4 animate-in fade-in slide-in-from-bottom-4 duration-500">
           {data.results.map((item, index) => (
             <ResultCard key={index} item={item} />
           ))}
@@ -229,6 +229,7 @@ function Countdown() {
 function ResultCard({ item }) {
   const [isOpen, setIsOpen] = useState(false);
   const [showCalendar, setShowCalendar] = useState(true);
+  const [expandCalendar, setExpandCalendar] = useState(false); // New state for expansion
 
   const getStatusConfig = (status) => {
     switch(status) {
@@ -261,8 +262,8 @@ function ResultCard({ item }) {
         </div>
         <div className="flex gap-2">
             <button
-                onClick={() => setShowCalendar(!showCalendar)}
-                className={`p-1.5 rounded-md transition-colors ${showCalendar ? 'bg-slate-100 text-slate-600' : 'text-slate-300'}`}
+                onClick={() => setExpandCalendar(!expandCalendar)}
+                className={`p-1.5 rounded-md transition-colors ${expandCalendar ? 'bg-slate-100 text-slate-600' : 'text-slate-300'}`} // Changed logic to toggle expansion
             >
                 <CalendarIcon size={18} />
             </button>
@@ -277,7 +278,11 @@ function ResultCard({ item }) {
 
       {showCalendar && item.status !== 'error' && (
         <div className="px-4 pb-4 animate-in fade-in">
-             <MonthCalendar consecutiveDays={item.consecutiveDays || 0} status={item.status} />
+             <MonthCalendar 
+                consecutiveDays={item.consecutiveDays || 0} 
+                status={item.status} 
+                expanded={expandCalendar} 
+             />
         </div>
       )}
 
@@ -298,7 +303,7 @@ function ResultCard({ item }) {
 }
 
 // 日历组件
-function MonthCalendar({ consecutiveDays, status }) {
+function MonthCalendar({ consecutiveDays, status, expanded }) {
     const today = moment();
     const startOfMonth = moment().startOf('month');
     const daysInMonth = today.daysInMonth();
@@ -334,18 +339,39 @@ function MonthCalendar({ consecutiveDays, status }) {
         });
     }
 
+    // --- Filter for Week View ---
+    let displayDays = days;
+    if (!expanded) {
+        // Find the index of today
+        // We know 'days' has padding at start.
+        // Today's day number is today.date().
+        // We need to find the specific item in 'days' where item.isToday is true.
+        const todayIndex = days.findIndex(d => d.isToday);
+        
+        if (todayIndex !== -1) {
+            // Find the start/end of the week row containing today
+            // Grid is 7 columns.
+            // Row index = Math.floor(todayIndex / 7)
+            const rowStart = Math.floor(todayIndex / 7) * 7;
+            const rowEnd = rowStart + 7;
+            displayDays = days.slice(rowStart, rowEnd);
+        }
+    }
+
     return (
-        <div className="bg-slate-50 rounded-lg p-3 border border-slate-100">
-            <div className="text-xs text-center text-slate-500 mb-2 font-medium">
-                {today.format("YYYY年 M月")}
-            </div>
+        <div className="bg-slate-50 rounded-lg p-3 border border-slate-100 text-center">
+            {expanded && (
+                <div className="text-xs text-center text-slate-500 mb-2 font-medium">
+                    {today.format("YYYY年 M月")}
+                </div>
+            )}
             <div className="grid grid-cols-7 gap-1 text-center mb-1">
                 {['日','一','二','三','四','五','六'].map(h => (
                     <div key={h} className="text-[10px] text-slate-400">{h}</div>
                 ))}
             </div>
             <div className="grid grid-cols-7 gap-1">
-                {days.map((item, idx) => {
+                {displayDays.map((item, idx) => {
                     if (!item.day) return <div key={idx} />;
                     return (
                         <div
