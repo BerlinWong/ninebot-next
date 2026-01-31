@@ -4,7 +4,9 @@ import moment from 'moment';
 import 'moment/locale/zh-cn';
 
 // 设置中文时间
+// 设置中文时间，并强制 UTC+8
 moment.locale('zh-cn');
+const BJ_OFFSET = 8;
 
 // === 核心配置 (完全还原稳定版 Headers，切勿删除任何字段) ===
 const CONFIG = {
@@ -72,7 +74,7 @@ class NineBot {
     // checkOnly=true 时只查不签
     async run(checkOnly = false) {
         try {
-            const timestamp = moment().valueOf();
+            const timestamp = moment().utcOffset(BJ_OFFSET).valueOf();
 
             // --- 1. 验证状态 ---
             let statusRes;
@@ -207,7 +209,7 @@ async function handleSign(req) {
     if (action === 'bark' || action === 'sign') {
         const poem = await getPoetry();
         // 日期格式优化：01-26 周一
-        const dateStr = moment().format('MM-DD dddd');
+        const dateStr = moment().utcOffset(BJ_OFFSET).format('MM-DD dddd');
 
         // 统计摘要：判断是否全部成功
         const isAllSuccess = results.every(r => r.status === 'success' || r.status === 'skipped');
@@ -268,7 +270,7 @@ async function handleSign(req) {
     }
 
     return NextResponse.json({
-        timestamp: moment().format('YYYY-MM-DD HH:mm:ss'),
+        timestamp: moment().utcOffset(BJ_OFFSET).format('YYYY-MM-DD HH:mm:ss'),
         action,
         results
     });

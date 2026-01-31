@@ -2,7 +2,7 @@
   "crons": [
     {
       "path": "/api/sign",
-      "schedule": "0 23 * * *"
+      "schedule": "3 0 * * *"
     }
   ]
 }

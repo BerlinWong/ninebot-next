@@ -59,6 +59,25 @@ export default function Home() {
   // 计算是否还有未签到的账号
   const hasUnsigned = data?.results?.some(item => item.status === 'waiting' || item.status === 'error');
 
+  // 诗词状态
+  const [poem, setPoem] = useState(null);
+  
+  // 获取每日诗词
+  useEffect(() => {
+    fetch("https://v1.jinrishici.com/all.json")
+      .then(res => res.json())
+      .then(data => {
+        if(data && data.content) {
+            setPoem({
+                content: data.content,
+                author: data.author,
+                origin: data.origin
+            });
+        }
+      })
+      .catch(err => console.error("Poetry fetch failed:", err));
+  }, []);
+
   return (
     <main className="max-w-md mx-auto min-h-screen bg-gray-50 flex flex-col p-4 font-sans">
       {/* 头部 */}
@@ -139,6 +158,26 @@ export default function Home() {
           {data.results.map((item, index) => (
             <ResultCard key={index} item={item} />
           ))}
+        </div>
+      )}
+
+      {/* 每日诗词 */}
+      {poem && (
+        <div className="mt-8 mb-8 relative animate-in fade-in slide-in-from-bottom-8 duration-700">
+            {/* <div className="absolute -top-3 left-6 bg-gray-50 px-2 text-2xl text-gray-300 font-serif">❝</div> */}
+            <div className="bg-white/50 backdrop-blur-sm p-6 rounded-2xl border border-gray-100 text-center">
+                <p className="text-slate-700 text-base font-serif leading-relaxed tracking-wide mb-3">
+                    {poem.content}
+                </p>
+                <div className="flex items-center justify-center gap-2 text-xs text-slate-400 font-medium tracking-wider">
+                    <span className="w-4 h-[1px] bg-slate-200"></span>
+                    <span>{poem.author}</span>
+                    <span className="w-1 h-1 rounded-full bg-slate-300"></span>
+                    <span>{poem.origin}</span>
+                    <span className="w-4 h-[1px] bg-slate-200"></span>
+                </div>
+            </div>
+            {/* <div className="absolute -bottom-3 right-6 bg-gray-50 px-2 text-2xl text-gray-300 font-serif rotate-180">❝</div> */}
         </div>
       )}
     </main>
